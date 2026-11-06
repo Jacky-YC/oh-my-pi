@@ -1,10 +1,10 @@
 name: fork-release
 
-# Tracks can1357/oh-my-pi and cuts a customized GitHub Release whenever upstream's version changes.
-# Nothing is pushed to the fork's default branch, so upstream's own CI never runs here.
+# 每 30 分钟用 ubuntu 轻量检查上游版本；只有上游版本变化（或手动 force）才启动 macOS 构建并发版。
+# 自动完成：合并上游 → 应用定制 → 构建 darwin-arm64 → GitHub Release（不发 npm/brew）。
 on:
    schedule:
-      - cron: "23 3 * * *"
+      - cron: "*/30 * * * *"
    workflow_dispatch:
       inputs:
          force:
@@ -26,24 +26,51 @@ env:
    BUN_VERSION: 1.4.4
 
 jobs:
-   release:
-      runs-on: macos-14
+   check:
+      name: Check upstream version
+      runs-on: ubuntu-22.04
+      outputs:
+         release: ${{ steps.decide.outputs.release }}
       steps:
-         - uses: actions/checkout@v4
-           with:
-              fetch-depth: 0
-
          - name: Disable upstream CI on this fork
            continue-on-error: true
            env:
               GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
            run: gh api -X PUT "/repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/disable"
 
+         - name: Compare upstream version with this fork's latest release
+           id: decide
+           env:
+              GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force || false }}
+           run: |
+              set -euo pipefail
+              BASE=$(curl -fsSL "https://raw.githubusercontent.com/${UPSTREAM_REPO}/main/packages/coding-agent/package.json" | jq -r .version)
+              LAST=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || true)
+              LAST_BASE=${LAST#v}
+              LAST_BASE=${LAST_BASE%-fork.*}
+              echo "upstream=$BASE latest-fork=${LAST:-none}"
+              if [ -n "$BASE" ] && { [ "$LAST_BASE" != "$BASE" ] || [ "$FORCE" = "true" ]; }; then
+                echo "release=true" >> "$GITHUB_OUTPUT"
+              else
+                echo "release=false" >> "$GITHUB_OUTPUT"
+              fi
+
+   release:
+      name: Build and release
+      needs: check
+      if: needs.check.outputs.release == 'true'
+      runs-on: macos-14
+      steps:
+         - uses: actions/checkout@v4
+           with:
+              fetch-depth: 0
+
          - name: Sync upstream sources
            run: |
               git config user.name "fork-release"
               git config user.email "fork-release@users.noreply.github.com"
-              git remote add upstream "https://github.com/${UPSTREAM_REPO}.git"
+              git remote add upstream "https://github.com/${UPSTREAM_REPO}.git" 2>/dev/null || true
               git fetch --no-tags upstream main
               git merge --no-edit upstream/main
 
@@ -52,6 +79,7 @@ jobs:
            env:
               FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force || false }}
            run: |
+              set -euo pipefail
               BASE=$(node -p "require('./packages/coding-agent/package.json').version")
               LAST=$(git tag --list --sort=-v:refname 'v*-fork.*' | head -1)
               if [ -n "$LAST" ]; then
@@ -73,7 +101,6 @@ jobs:
                 N=1
               fi
               VERSION="${BASE}-fork.${N}"
-              echo "base=$BASE" >> "$GITHUB_OUTPUT"
               echo "version=$VERSION" >> "$GITHUB_OUTPUT"
               echo "skip=false" >> "$GITHUB_OUTPUT"
               echo "releasing v$VERSION"
@@ -116,6 +143,7 @@ jobs:
               GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               VERSION: ${{ steps.version.outputs.version }}
            run: |
+              set -euo pipefail
               git tag "v${VERSION}"
               git push origin "v${VERSION}"
               gh release create "v${VERSION}" \

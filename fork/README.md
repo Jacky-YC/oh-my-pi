@@ -9,9 +9,11 @@
 | `fork/apply-customizations.mjs` | 构建前打补丁：ACP 自动标题、自更新指向本 fork、原生 addon 下载指向本 fork、workspace 版本号 |
 | `.github/workflows/fork-release.yml` | 每日/手动：合并上游 → 应用定制 → 构建 darwin-arm64 → 发 GitHub Release |
 
-## 触发一次
+## 自动运行
 
-GitHub → Actions → **fork-release** → Run workflow（可勾选 `force` 重新构建当前上游版本）。
+无需手动触发：`schedule: */30 * * * *` 每 30 分钟检查一次，命中新上游版本才启动 macOS 构建。
+
+需要立刻重跑当前版本时：GitHub → Actions → **fork-release** → Run workflow，勾 `force`。
 
 流程：
 
