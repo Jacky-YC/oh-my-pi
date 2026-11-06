@@ -53,3 +53,5 @@ Release 不要标记 prerelease，否则 `/releases/latest` 看不到。
 - 许可证：上游 MIT，保留 `LICENSE` 与 `THIRD-PARTY-NOTICES.txt`。
 
 <!-- build trigger 1793956138 -->
+
+<!-- cache probe 1793957615 -->
