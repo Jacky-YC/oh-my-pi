@@ -5,6 +5,9 @@ name: fork-release
 on:
    schedule:
       - cron: "*/30 * * * *"
+   push:
+      branches: [main]
+      paths: ["fork/**"]
    workflow_dispatch:
       inputs:
          force:
@@ -35,7 +38,7 @@ jobs:
            id: decide
            env:
               GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force || false }}
+              FORCE: ${{ (github.event_name == 'workflow_dispatch' && inputs.force) || github.event_name == 'push' }}
            run: |
               set -euo pipefail
               BASE=$(curl -fsSL "https://raw.githubusercontent.com/${UPSTREAM_REPO}/main/packages/coding-agent/package.json" | jq -r .version)
@@ -69,7 +72,7 @@ jobs:
          - name: Resolve fork version
            id: version
            env:
-              FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force || false }}
+              FORCE: ${{ (github.event_name == 'workflow_dispatch' && inputs.force) || github.event_name == 'push' }}
            run: |
               set -euo pipefail
               BASE=$(node -p "require('./packages/coding-agent/package.json').version")
