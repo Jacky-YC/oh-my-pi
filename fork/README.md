@@ -18,10 +18,10 @@
 流程：
 
 1. `git fetch upstream main` + `git merge`（只发生在 runner 工作区，不推 main）；
-2. 读上游 `packages/coding-agent/package.json` 版本，生成 `X.Y.Z-fork.N`；
+2. 读上游 `packages/coding-agent/package.json` 版本，生成 `X.Y.Z-N`；
 3. 应用 `fork/apply-customizations.mjs`；
 4. `bun install` → `bun --cwd=packages/natives run build` → `RELEASE_TARGETS=darwin-arm64 bun run ci:release:build-binaries`；
-5. 创建 tag `vX.Y.Z-fork.N` 和 GitHub Release（二进制 + `.sha256`），不发 npm/brew。
+5. 创建 tag `vX.Y.Z-N` 和 GitHub Release（二进制 + `.sha256`），不发 npm/brew。
 
 ## 自更新
 
@@ -40,7 +40,7 @@ Release 不要标记 prerelease，否则 `/releases/latest` 看不到。
 1. `packages/coding-agent/src/main.ts`：ACP 不再强制 `PI_NO_TITLE=1`，且 `autoTitle = isInteractive || mode === "acp"`（Air 通过 `session_info_update` 显示生成的标题）。
 2. `packages/coding-agent/src/cli/build-service.ts`：`fetchBuild()` 优先走本 fork 的 GitHub Releases。
 3. `packages/natives/native/loader-state.js`：原生 addon 回退下载 URL 指向本 fork。
-4. 所有 workspace 包版本 + 根 catalog 版本统一改成 `X.Y.Z-fork.N`。
+4. 所有 workspace 包版本 + 根 catalog 版本统一改成 `X.Y.Z-N`。
 
 脚本不幂等：重复运行前先 `git checkout -- .`。
 

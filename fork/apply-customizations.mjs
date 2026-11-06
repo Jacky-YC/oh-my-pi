@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Applies this fork's customizations to an upstream checkout.
 //
-// Usage: node fork/apply-customizations.mjs --repo <owner/repo> --version <x.y.z-fork.n>
+// Usage: node fork/apply-customizations.mjs --repo <owner/repo> --version <x.y.z-n>
 //
 // Every edit is anchored to an exact upstream string and asserted; if upstream moves the
 // code, this script fails loudly instead of silently shipping a build without the patch.
@@ -24,8 +24,8 @@ const version = args.get("version");
 if (!repo || !/^[\w.-]+\/[\w.-]+$/.test(repo)) {
 	throw new Error("--repo owner/repo is required");
 }
-if (!version || !/^\d+\.\d+\.\d+-fork\.\d+$/.test(version)) {
-	throw new Error("--version <x.y.z-fork.n> is required");
+if (!version || !/^\d+\.\d+\.\d+-\d+$/.test(version)) {
+	throw new Error("--version <x.y.z-n> is required");
 }
 
 const root = process.cwd();
@@ -198,7 +198,7 @@ replace(
 
 // 5) Version bump: every workspace package + the root catalog pin must move together, otherwise
 //    bun links the published 18.x packages instead of the local workspace builds.
-const baseVersion = version.replace(/-fork\.\d+$/, "");
+const baseVersion = version.replace(/-\d+$/, "");
 const versionPattern = new RegExp(`("version"\\s*:\\s*")${baseVersion.replace(/\./g, "\\.")}(")`);
 const packagesDir = path.join(root, "packages");
 for (const entry of fs.readdirSync(packagesDir, { withFileTypes: true })) {

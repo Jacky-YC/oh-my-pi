@@ -43,8 +43,7 @@ jobs:
               set -euo pipefail
               BASE=$(curl -fsSL "https://raw.githubusercontent.com/${UPSTREAM_REPO}/main/packages/coding-agent/package.json" | jq -r .version)
               LAST=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || true)
-              LAST_BASE=${LAST#v}
-              LAST_BASE=${LAST_BASE%-fork.*}
+              LAST_BASE=$(echo "$LAST" | sed -E 's/^v//; s/-[0-9]+$//')
               echo "upstream=$BASE latest-fork=${LAST:-none}"
               if [ -n "$BASE" ] && { [ "$LAST_BASE" != "$BASE" ] || [ "$FORCE" = "true" ]; }; then
                 echo "release=true" >> "$GITHUB_OUTPUT"
@@ -78,8 +77,10 @@ jobs:
               set -euo pipefail
               BASE=$(node -p "require('./packages/coding-agent/package.json').version")
               REL=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || true)
-              TAG=$(git tag --list --sort=-v:refname 'v*-fork.*' | head -1)
-              REL_BASE=${REL#v}; REL_BASE=${REL_BASE%-fork.*}
+              TAG=$(git tag --list --sort=-v:refname 'v[0-9]*' | head -1)
+              base_of() { echo "$1" | sed -E 's/^v//; s/-[0-9]+$//'; }
+              suffix_of() { echo "$1" | sed -nE 's/.*-([0-9]+)$/\1/p'; }
+              REL_BASE=$(base_of "$REL")
               if [ -n "$REL" ] && [ "$REL_BASE" = "$BASE" ] && [ "$FORCE" != "true" ]; then
                 echo "skip=true" >> "$GITHUB_OUTPUT"
                 echo "upstream $BASE already released as $REL; skipping"
@@ -88,13 +89,13 @@ jobs:
               N=1
               for CAND in "$REL" "$TAG"; do
                 [ -z "$CAND" ] && continue
-                CAND_BASE=${CAND#v}; CAND_BASE=${CAND_BASE%-fork.*}
-                CAND_N=${CAND##*-fork.}
-                if [ "$CAND_BASE" = "$BASE" ] && [ "$CAND_N" -ge 1 ] && [ $(( CAND_N + 1 )) -gt "$N" ]; then
+                CAND_BASE=$(base_of "$CAND")
+                CAND_N=$(suffix_of "$CAND"); [ -n "$CAND_N" ] || CAND_N=0
+                if [ "$CAND_BASE" = "$BASE" ] && [ $(( CAND_N + 1 )) -gt "$N" ]; then
                   N=$(( CAND_N + 1 ))
                 fi
               done
-              VERSION="${BASE}-fork.${N}"
+              VERSION="${BASE}-${N}"
               echo "version=$VERSION" >> "$GITHUB_OUTPUT"
               echo "skip=false" >> "$GITHUB_OUTPUT"
               echo "releasing v$VERSION"
