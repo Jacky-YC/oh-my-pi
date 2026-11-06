@@ -25,6 +25,8 @@ env:
    TARGET: darwin-arm64
    BUN_VERSION: 1.4.4
    CARGO_INCREMENTAL: "0"
+   RUSTC_WRAPPER: sccache
+   SCCACHE_GHA_ENABLED: "true"
 
 jobs:
    check:
@@ -112,6 +114,10 @@ jobs:
            with:
               bun-version: ${{ env.BUN_VERSION }}
 
+         - name: Setup sccache
+           if: steps.version.outputs.skip != 'true'
+           uses: mozilla-actions/sccache-action@v0.0.11
+
          - name: Install dependencies
            if: steps.version.outputs.skip != 'true'
            run: bun install
@@ -137,6 +143,11 @@ jobs:
            env:
               RELEASE_TARGETS: ${{ env.TARGET }}
            run: bun run ci:release:build-binaries
+
+         - name: sccache stats
+           if: steps.version.outputs.skip != 'true'
+           continue-on-error: true
+           run: sccache --show-stats
 
          - name: Write checksum
            if: steps.version.outputs.skip != 'true'
