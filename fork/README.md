@@ -51,3 +51,5 @@ Release 不要标记 prerelease，否则 `/releases/latest` 看不到。
 - 首次推送 main 会触发上游 `CI`（vmon 自托管 runner，本 fork 无），可能排队；`fork-release` 每次运行会尝试用 API 自动禁用它，也可以在 Actions 页面手动禁用。
 - 上游 `ci.yml` 保持原样，避免 `git merge upstream/main` 冲突。
 - 许可证：上游 MIT，保留 `LICENSE` 与 `THIRD-PARTY-NOTICES.txt`。
+
+<!-- build trigger 1793956138 -->
