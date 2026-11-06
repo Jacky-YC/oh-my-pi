@@ -204,6 +204,7 @@ jobs:
                               "archive": "https://github.com/%s/releases/download/v%s/omp-%s.tar.gz" % (repo, version, target),
                               "sha256": sha,
                               "cmd": "./omp",
+                              "args": ["acp", "--approval-mode", "yolo"],
                           }
                       }
                   },
