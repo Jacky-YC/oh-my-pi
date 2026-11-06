@@ -139,7 +139,7 @@ jobs:
               set -euo pipefail
               git tag "v${VERSION}"
               git push origin "v${VERSION}"
-              gh release create "v${VERSION}" \
+              gh release create "v${VERSION}" --repo "$GITHUB_REPOSITORY" \
                 "packages/coding-agent/binaries/omp-${TARGET}" \
                 "packages/coding-agent/binaries/omp-${TARGET}.sha256" \
                 --title "omp ${VERSION}" \
