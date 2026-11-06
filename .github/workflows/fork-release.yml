@@ -35,11 +35,6 @@ jobs:
       outputs:
          release: ${{ steps.decide.outputs.release }}
       steps:
-         - name: Disable upstream CI on this fork
-           continue-on-error: true
-           env:
-              GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-           run: gh api -X PUT "/repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/disable"
 
          - name: Compare upstream version with this fork's latest release
            id: decide
