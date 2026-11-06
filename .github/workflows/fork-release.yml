@@ -180,7 +180,7 @@ jobs:
                 if gh release create "v${VERSION}" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
                 "packages/coding-agent/binaries/omp-${TARGET}" \
                 "packages/coding-agent/binaries/omp-${TARGET}.sha256" \
-                --title "omp ${VERSION}" \
+                --title "v${VERSION}" \
                 --notes "Fork build of upstream ${VERSION%-*} with ACP auto session titles, fork self-update, and fork native-addon downloads." \
                   --latest; then
                   exit 0
