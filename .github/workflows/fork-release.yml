@@ -5,6 +5,9 @@ name: fork-release
 on:
    schedule:
       - cron: "*/30 * * * *"
+   push:
+      tags:
+         - "fork-build-*"
    workflow_dispatch:
       inputs:
          force:
