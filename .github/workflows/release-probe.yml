@@ -1,0 +1,28 @@
+name: release-probe
+on:
+  push:
+    branches: [probe]
+permissions:
+  contents: write
+jobs:
+  probe:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: create with --target
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "v0.0.0-probe-a" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title probe-a --notes probe-a --draft && echo RESULT_A=OK
+      - name: create without --target
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "v0.0.0-probe-b" --repo "$GITHUB_REPOSITORY" --title probe-b --notes probe-b --draft && echo RESULT_B=OK
+      - name: cleanup
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete v0.0.0-probe-a --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
+          gh release delete v0.0.0-probe-b --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
