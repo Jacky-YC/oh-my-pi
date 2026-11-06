@@ -150,9 +150,10 @@ jobs:
               VERSION: ${{ steps.version.outputs.version }}
            run: |
               set -euo pipefail
-              git tag "v${VERSION}"
-              git push origin "v${VERSION}"
-              gh release create "v${VERSION}" --repo "$GITHUB_REPOSITORY" \
+              # GITHUB_TOKEN is a GitHub App token; pushing a tag whose tree contains workflow
+              # files is rejected without the app-only `workflows` permission. Let the Releases
+              # API create the tag server-side instead.
+              gh release create "v${VERSION}" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
                 "packages/coding-agent/binaries/omp-${TARGET}" \
                 "packages/coding-agent/binaries/omp-${TARGET}.sha256" \
                 --title "omp ${VERSION}" \
