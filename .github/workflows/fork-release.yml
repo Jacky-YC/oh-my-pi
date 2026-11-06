@@ -19,9 +19,6 @@ permissions:
    contents: write
    actions: write
 
-concurrency:
-   group: fork-release
-   cancel-in-progress: false
 
 env:
    UPSTREAM_REPO: can1357/oh-my-pi
