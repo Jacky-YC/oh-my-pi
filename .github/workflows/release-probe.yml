@@ -20,9 +20,17 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create "v0.0.0-probe-b" --repo "$GITHUB_REPOSITORY" --title probe-b --notes probe-b --draft && echo RESULT_B=OK
+      - name: create non-draft with assets and --latest
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo hi > /tmp/asset.txt
+          gh release create "v0.0.0-probe-c" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title probe-c --notes probe-c --latest /tmp/asset.txt && echo RESULT_C=OK
       - name: cleanup
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release delete v0.0.0-probe-a --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
           gh release delete v0.0.0-probe-b --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
+          gh release delete v0.0.0-probe-c --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
