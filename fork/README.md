@@ -76,3 +76,5 @@ Then install **Oh My Pi Agent** from the Agents page once. Sessions use `acp.reg
 get the fork's auto-generated emoji titles, and the registered icon.
 
 Alternative self-hosted binary (no registry): `curl -fsSL .../releases/latest/download/omp-darwin-arm64`.
+
+registry run trigger 2026-11-06T13:53:51Z
