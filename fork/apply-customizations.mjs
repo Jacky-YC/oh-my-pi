@@ -157,7 +157,46 @@ replace(
 	"const host = options.host ?? (await currentBuildHost());\n\tif (FORK_GITHUB_REPO) return fetchForkBuild(FORK_GITHUB_REPO, selector, host, options);",
 );
 
-// 4) Version bump: every workspace package + the root catalog pin must move together, otherwise
+// 4) Push auto-generated titles to ACP clients. The generator sets the session name
+//    asynchronously after end-of-turn updates, so subscribe to name changes and emit
+//    session_info_update ourselves (this is also what /rename does explicitly).
+const acpAgent = "packages/coding-agent/src/modes/acp/acp-agent.ts";
+replace(
+	acpAgent,
+	"\tlifetimeUnsubscribe: (() => void) | undefined;",
+	"\tlifetimeUnsubscribe: (() => void) | undefined;\n\ttitleUnsubscribe: (() => void) | undefined;",
+);
+replace(
+	acpAgent,
+	"\t\t\tlifetimeUnsubscribe: undefined,",
+	"\t\t\tlifetimeUnsubscribe: undefined,\n\t\t\ttitleUnsubscribe: undefined,",
+);
+replace(
+	acpAgent,
+	"\t\t\trecord.lifetimeUnsubscribe = unsubscribeEvents;",
+	"\t\t\trecord.lifetimeUnsubscribe = unsubscribeEvents;\n" +
+		"\t\t\t// Auto-generated titles land after end-of-turn updates; push them so ACP clients\n" +
+		"\t\t\t// (and Air) see the generated name without waiting for a rename.\n" +
+		"\t\t\trecord.titleUnsubscribe = session.sessionManager.onSessionNameChanged(() => {\n" +
+		"\t\t\t\tvoid this.#connection\n" +
+		"\t\t\t\t\t.sessionUpdate({\n" +
+		"\t\t\t\t\t\tsessionId: record.protocolSessionId,\n" +
+		"\t\t\t\t\t\tupdate: {\n" +
+		"\t\t\t\t\t\t\tsessionUpdate: \"session_info_update\",\n" +
+		"\t\t\t\t\t\t\ttitle: record.session.sessionName,\n" +
+		"\t\t\t\t\t\t\tupdatedAt: new Date().toISOString(),\n" +
+		"\t\t\t\t\t\t},\n" +
+		"\t\t\t\t\t})\n" +
+		"\t\t\t\t\t.catch(() => {});\n" +
+		"\t\t\t});",
+);
+replace(
+	acpAgent,
+	"\t\trecord.lifetimeUnsubscribe?.();",
+	"\t\trecord.lifetimeUnsubscribe?.();\n\t\trecord.titleUnsubscribe?.();",
+);
+
+// 5) Version bump: every workspace package + the root catalog pin must move together, otherwise
 //    bun links the published 18.x packages instead of the local workspace builds.
 const baseVersion = version.replace(/-fork\.\d+$/, "");
 const versionPattern = new RegExp(`("version"\\s*:\\s*")${baseVersion.replace(/\./g, "\\.")}(")`);
