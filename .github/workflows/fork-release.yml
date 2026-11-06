@@ -122,9 +122,10 @@ jobs:
            if: steps.version.outputs.skip != 'true'
            run: bun install
 
-         - name: Cache cargo registry and target
+         - name: Restore cargo cache
+           id: cargo-cache
            if: steps.version.outputs.skip != 'true'
-           uses: actions/cache@v4
+           uses: actions/cache/restore@v4
            with:
               path: |
                  ~/.cargo/registry
@@ -143,6 +144,16 @@ jobs:
            env:
               RELEASE_TARGETS: ${{ env.TARGET }}
            run: bun run ci:release:build-binaries
+
+         - name: Save cargo cache
+           if: always() && steps.version.outputs.skip != 'true' && steps.cargo-cache.outputs.cache-hit != 'true'
+           uses: actions/cache/save@v4
+           with:
+              path: |
+                 ~/.cargo/registry
+                 ~/.cargo/git
+                 target
+              key: ${{ steps.cargo-cache.outputs.cache-primary-key }}
 
          - name: sccache stats
            if: steps.version.outputs.skip != 'true'
@@ -165,9 +176,17 @@ jobs:
               # GITHUB_TOKEN is a GitHub App token; pushing a tag whose tree contains workflow
               # files is rejected without the app-only `workflows` permission. Let the Releases
               # API create the tag server-side instead.
-              gh release create "v${VERSION}" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              for ATTEMPT in 1 2 3; do
+                if gh release create "v${VERSION}" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
                 "packages/coding-agent/binaries/omp-${TARGET}" \
                 "packages/coding-agent/binaries/omp-${TARGET}.sha256" \
                 --title "omp ${VERSION}" \
-                --notes "Fork build of upstream ${VERSION%%-fork.*} with ACP auto session titles, fork self-update, and fork native-addon downloads." \
-                --latest
+                --notes "Fork build of upstream ${VERSION%-*} with ACP auto session titles, fork self-update, and fork native-addon downloads." \
+                  --latest; then
+                  exit 0
+                fi
+                echo "release attempt $ATTEMPT failed; retrying in 10s" >&2
+                sleep 10
+              done
+              echo "release creation failed after 3 attempts" >&2
+              exit 1
