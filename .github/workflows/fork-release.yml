@@ -24,6 +24,7 @@ env:
    UPSTREAM_REPO: can1357/oh-my-pi
    TARGET: darwin-arm64
    BUN_VERSION: 1.4.4
+   CARGO_INCREMENTAL: "0"
 
 jobs:
    check:
@@ -113,6 +114,18 @@ jobs:
          - name: Install dependencies
            if: steps.version.outputs.skip != 'true'
            run: bun install
+
+         - name: Cache cargo registry and target
+           if: steps.version.outputs.skip != 'true'
+           uses: actions/cache@v4
+           with:
+              path: |
+                 ~/.cargo/registry
+                 ~/.cargo/git
+                 target
+              key: cargo-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+              restore-keys: |
+                 cargo-${{ runner.os }}-${{ runner.arch }}-
 
          - name: Build host native addon
            if: steps.version.outputs.skip != 'true'
