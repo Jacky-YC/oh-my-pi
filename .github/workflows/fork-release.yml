@@ -166,6 +166,52 @@ jobs:
               cd packages/coding-agent/binaries
               shasum -a 256 "omp-${TARGET}" > "omp-${TARGET}.sha256"
 
+         - name: Package ACP registry archive
+           if: steps.version.outputs.skip != 'true'
+           run: |
+              cd packages/coding-agent/binaries
+              rm -rf pkg && mkdir pkg
+              cp "omp-${TARGET}" pkg/omp
+              tar -czf "omp-${TARGET}.tar.gz" -C pkg omp
+              shasum -a 256 "omp-${TARGET}.tar.gz" > "omp-${TARGET}.tar.gz.sha256"
+
+         - name: Write ACP registry manifest
+           if: steps.version.outputs.skip != 'true'
+           env:
+              VERSION: ${{ steps.version.outputs.version }}
+              REPO: ${{ github.repository }}
+           run: |
+              set -euo pipefail
+              cd packages/coding-agent/binaries
+              SHA=$(shasum -a 256 "omp-${TARGET}.tar.gz" | cut -d' ' -f1)
+              VERSION="$VERSION" REPO="$REPO" SHA="$SHA" TARGET="$TARGET" python3 - > registry.json <<'PY'
+              import json, os
+              version = os.environ["VERSION"]
+              repo = os.environ["REPO"]
+              sha = os.environ["SHA"]
+              target = os.environ["TARGET"]
+              agent = {
+                  "id": "omp",
+                  "name": "Oh My Pi Agent",
+                  "version": version,
+                  "description": "oh-my-pi (omp) coding agent over ACP: full toolset, subagents, LSP, MCP, plan mode and auto session titles.",
+                  "authors": ["jacky"],
+                  "license": "MIT",
+                  "icon": "https://raw.githubusercontent.com/%s/main/fork/omp.svg" % repo,
+                  "distribution": {
+                      "binary": {
+                          "darwin-aarch64": {
+                              "archive": "https://github.com/%s/releases/download/v%s/omp-%s.tar.gz" % (repo, version, target),
+                              "sha256": sha,
+                              "cmd": "./omp",
+                          }
+                      }
+                  },
+              }
+              print(json.dumps({"version": "1.0.0", "agents": [agent]}, indent=2))
+              PY
+              python3 -c 'import json;json.load(open("registry.json"));print("registry ok")'
+
          - name: Create tag and GitHub Release
            if: steps.version.outputs.skip != 'true'
            env:
@@ -180,8 +226,11 @@ jobs:
                 if gh release create "v${VERSION}" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
                 "packages/coding-agent/binaries/omp-${TARGET}" \
                 "packages/coding-agent/binaries/omp-${TARGET}.sha256" \
+                "packages/coding-agent/binaries/omp-${TARGET}.tar.gz" \
+                "packages/coding-agent/binaries/omp-${TARGET}.tar.gz.sha256" \
+                "packages/coding-agent/binaries/registry.json" \
                 --title "v${VERSION}" \
-                --notes "Fork build of upstream ${VERSION%-*} with ACP auto session titles, fork self-update, and fork native-addon downloads." \
+                --notes "Fork build of upstream ${VERSION%-*} with ACP auto session titles, fork self-update, fork native-addon downloads, and an ACP registry (releases/latest/download/registry.json)." \
                   --latest; then
                   exit 0
                 fi

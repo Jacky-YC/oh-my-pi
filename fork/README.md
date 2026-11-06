@@ -57,3 +57,22 @@ Release 不要标记 prerelease，否则 `/releases/latest` 看不到。
 <!-- cache probe 1793957615 -->
 
 <!-- build 1793957968 -->
+
+## ACP registry (IntelliJ IDEA Air)
+
+Every release publishes `registry.json` and `omp-darwin-arm64.tar.gz`:
+
+```
+https://github.com/Jacky-YC/oh-my-pi/releases/latest/download/registry.json
+```
+
+Point Air at it (Help > Edit Custom VM Options, then restart):
+
+```
+-Dair.acp.registry.url=https://github.com/Jacky-YC/oh-my-pi/releases/latest/download/registry.json
+```
+
+Then install **Oh My Pi Agent** from the Agents page once. Sessions use `acp.registry.omp`,
+get the fork's auto-generated emoji titles, and the registered icon.
+
+Alternative self-hosted binary (no registry): `curl -fsSL .../releases/latest/download/omp-darwin-arm64`.
