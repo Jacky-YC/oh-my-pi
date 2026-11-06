@@ -58,7 +58,7 @@ jobs:
       name: Build and release
       needs: check
       if: needs.check.outputs.release == 'true'
-      runs-on: macos-14
+      runs-on: macos-13
       steps:
          - uses: actions/checkout@v4
            with:
