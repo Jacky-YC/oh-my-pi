@@ -76,25 +76,23 @@ jobs:
            run: |
               set -euo pipefail
               BASE=$(node -p "require('./packages/coding-agent/package.json').version")
-              LAST=$(git tag --list --sort=-v:refname 'v*-fork.*' | head -1)
-              if [ -n "$LAST" ]; then
-                LAST_BASE=${LAST#v}
-                LAST_BASE=${LAST_BASE%-fork.*}
-                LAST_N=${LAST##*-fork.}
-              else
-                LAST_BASE=""
-                LAST_N=0
-              fi
-              if [ "$LAST_BASE" = "$BASE" ] && [ "$FORCE" != "true" ]; then
+              REL=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || true)
+              TAG=$(git tag --list --sort=-v:refname 'v*-fork.*' | head -1)
+              REL_BASE=${REL#v}; REL_BASE=${REL_BASE%-fork.*}
+              if [ -n "$REL" ] && [ "$REL_BASE" = "$BASE" ] && [ "$FORCE" != "true" ]; then
                 echo "skip=true" >> "$GITHUB_OUTPUT"
-                echo "upstream $BASE already released; skipping"
+                echo "upstream $BASE already released as $REL; skipping"
                 exit 0
               fi
-              if [ "$LAST_BASE" = "$BASE" ] && [ "$LAST_N" -gt 0 ]; then
-                N=$(( LAST_N + 1 ))
-              else
-                N=1
-              fi
+              N=1
+              for CAND in "$REL" "$TAG"; do
+                [ -z "$CAND" ] && continue
+                CAND_BASE=${CAND#v}; CAND_BASE=${CAND_BASE%-fork.*}
+                CAND_N=${CAND##*-fork.}
+                if [ "$CAND_BASE" = "$BASE" ] && [ "$CAND_N" -ge 1 ] && [ $(( CAND_N + 1 )) -gt "$N" ]; then
+                  N=$(( CAND_N + 1 ))
+                fi
+              done
               VERSION="${BASE}-fork.${N}"
               echo "version=$VERSION" >> "$GITHUB_OUTPUT"
               echo "skip=false" >> "$GITHUB_OUTPUT"
