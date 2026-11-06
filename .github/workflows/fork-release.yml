@@ -1,0 +1,126 @@
+name: fork-release
+
+# Tracks can1357/oh-my-pi and cuts a customized GitHub Release whenever upstream's version changes.
+# Nothing is pushed to the fork's default branch, so upstream's own CI never runs here.
+on:
+   schedule:
+      - cron: "23 3 * * *"
+   workflow_dispatch:
+      inputs:
+         force:
+            description: "Rebuild the current upstream version as a new fork release"
+            type: boolean
+            default: false
+
+permissions:
+   contents: write
+   actions: write
+
+concurrency:
+   group: fork-release
+   cancel-in-progress: false
+
+env:
+   UPSTREAM_REPO: can1357/oh-my-pi
+   TARGET: darwin-arm64
+   BUN_VERSION: 1.4.4
+
+jobs:
+   release:
+      runs-on: macos-14
+      steps:
+         - uses: actions/checkout@v4
+           with:
+              fetch-depth: 0
+
+         - name: Disable upstream CI on this fork
+           continue-on-error: true
+           env:
+              GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+           run: gh api -X PUT "/repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/disable"
+
+         - name: Sync upstream sources
+           run: |
+              git config user.name "fork-release"
+              git config user.email "fork-release@users.noreply.github.com"
+              git remote add upstream "https://github.com/${UPSTREAM_REPO}.git"
+              git fetch --no-tags upstream main
+              git merge --no-edit upstream/main
+
+         - name: Resolve fork version
+           id: version
+           env:
+              FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force || false }}
+           run: |
+              BASE=$(node -p "require('./packages/coding-agent/package.json').version")
+              LAST=$(git tag --list --sort=-v:refname 'v*-fork.*' | head -1)
+              if [ -n "$LAST" ]; then
+                LAST_BASE=${LAST#v}
+                LAST_BASE=${LAST_BASE%-fork.*}
+                LAST_N=${LAST##*-fork.}
+              else
+                LAST_BASE=""
+                LAST_N=0
+              fi
+              if [ "$LAST_BASE" = "$BASE" ] && [ "$FORCE" != "true" ]; then
+                echo "skip=true" >> "$GITHUB_OUTPUT"
+                echo "upstream $BASE already released; skipping"
+                exit 0
+              fi
+              if [ "$LAST_BASE" = "$BASE" ] && [ "$LAST_N" -gt 0 ]; then
+                N=$(( LAST_N + 1 ))
+              else
+                N=1
+              fi
+              VERSION="${BASE}-fork.${N}"
+              echo "base=$BASE" >> "$GITHUB_OUTPUT"
+              echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+              echo "skip=false" >> "$GITHUB_OUTPUT"
+              echo "releasing v$VERSION"
+
+         - name: Apply fork customizations
+           if: steps.version.outputs.skip != 'true'
+           run: |
+              node fork/apply-customizations.mjs \
+                --repo "$GITHUB_REPOSITORY" \
+                --version "${{ steps.version.outputs.version }}"
+
+         - uses: oven-sh/setup-bun@v2
+           if: steps.version.outputs.skip != 'true'
+           with:
+              bun-version: ${{ env.BUN_VERSION }}
+
+         - name: Install dependencies
+           if: steps.version.outputs.skip != 'true'
+           run: bun install
+
+         - name: Build host native addon
+           if: steps.version.outputs.skip != 'true'
+           run: bun --cwd=packages/natives run build
+
+         - name: Build release binary
+           if: steps.version.outputs.skip != 'true'
+           env:
+              RELEASE_TARGETS: ${{ env.TARGET }}
+           run: bun run ci:release:build-binaries
+
+         - name: Write checksum
+           if: steps.version.outputs.skip != 'true'
+           run: |
+              cd packages/coding-agent/binaries
+              shasum -a 256 "omp-${TARGET}" > "omp-${TARGET}.sha256"
+
+         - name: Create tag and GitHub Release
+           if: steps.version.outputs.skip != 'true'
+           env:
+              GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              VERSION: ${{ steps.version.outputs.version }}
+           run: |
+              git tag "v${VERSION}"
+              git push origin "v${VERSION}"
+              gh release create "v${VERSION}" \
+                "packages/coding-agent/binaries/omp-${TARGET}" \
+                "packages/coding-agent/binaries/omp-${TARGET}.sha256" \
+                --title "omp ${VERSION}" \
+                --notes "Fork build of upstream ${VERSION%%-fork.*} with ACP auto session titles, fork self-update, and fork native-addon downloads." \
+                --latest
