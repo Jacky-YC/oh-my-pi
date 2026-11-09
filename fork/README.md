@@ -80,3 +80,5 @@ Alternative self-hosted binary (no registry): `curl -fsSL .../releases/latest/do
 registry run trigger 2026-11-06T13:53:51Z
 
 trigger 2026-11-09T01:44:52Z
+
+trigger update-check fix 2026-11-09T02:20:33Z
