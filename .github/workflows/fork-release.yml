@@ -120,6 +120,10 @@ jobs:
 
          - name: Install dependencies
            if: steps.version.outputs.skip != 'true'
+           env:
+              # prepare -> gen:export-viewer; CI=true would only verify the committed
+              # manifest, which goes stale whenever upstream touches the viewer sources.
+              CI: "false"
            run: bun install
 
          - name: Restore cargo cache
