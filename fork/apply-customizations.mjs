@@ -84,8 +84,27 @@ const forkHelper = `
  *
  * Assets are published by .github/workflows/fork-release.yml as \`omp-<target>\` plus a
  * sibling \`omp-<target>.sha256\`, so the existing download/verify path is unchanged.
+ *
+ * Resolution deliberately avoids api.github.com: unauthenticated callers share a
+ * 60 requests/hour IP quota, and a 403 there used to suppress the update notice.
  */
 const FORK_GITHUB_REPO = ${JSON.stringify(repo)};
+
+/** Resolve the release GitHub marks as latest via the web redirect (no API quota). */
+async function resolveForkTag(repoName: string, doFetch: Fetch, signal: AbortSignal): Promise<string> {
+	const url = \`https://github.com/\${repoName}/releases/latest\`;
+	const response = await doFetch(url, {
+		redirect: "follow",
+		headers: { "User-Agent": \`\${APP_NAME}/\${VERSION}\` },
+		signal,
+	});
+	if (!response.ok) {
+		throw new Error(\`Failed to resolve fork release: \${response.status} \${response.statusText}\`);
+	}
+	const match = /\\/releases\\/tag\\/(v[^/?#]+)/.exec(response.url);
+	if (!match?.[1]) throw new Error("Fork release redirect had no tag");
+	return decodeURIComponent(match[1]);
+}
 
 async function fetchForkBuild(
 	repoName: string,
@@ -94,36 +113,23 @@ async function fetchForkBuild(
 	options: FetchBuildOptions,
 ): Promise<BuildAnswer> {
 	const doFetch: Fetch = options.fetchImpl ?? fetch;
-	const headers = {
-		Accept: "application/vnd.github+json",
-		"User-Agent": \`\${APP_NAME}/\${VERSION}\`,
-	};
+	const headers = { "User-Agent": \`\${APP_NAME}/\${VERSION}\` };
 	const signal = AbortSignal.timeout(options.timeoutMs ?? BUILD_CHECK_TIMEOUT_MS);
-	const base = \`https://api.github.com/repos/\${repoName}/releases\`;
-	const endpoint = "channel" in selector ? \`\${base}/latest\` : \`\${base}/tags/v\${selector.version}\`;
-	const response = await doFetch(endpoint, { headers, signal });
-	if (!response.ok) {
-		throw new Error(\`Failed to fetch fork release: \${response.status} \${response.statusText}\`);
-	}
-	const release = (await response.json()) as {
-		tag_name?: unknown;
-		assets?: Array<{ name?: unknown; size?: unknown; browser_download_url?: unknown }>;
-	};
-	const tag = typeof release.tag_name === "string" ? release.tag_name : "";
+	const tag = "channel" in selector ? await resolveForkTag(repoName, doFetch, signal) : \`v\${selector.version}\`;
 	const resolved = tag.replace(/^v/, "");
 	if (!SEMVER.test(resolved)) {
-		throw new Error(\`Fork release \${tag || "(untagged)"} has no valid version\`);
+		throw new Error(\`Fork release \${tag} has no valid version\`);
 	}
-	const assets = Array.isArray(release.assets) ? release.assets : [];
-	const asset = assets.find(a => a.name === host.fileName);
-	if (!asset || typeof asset.browser_download_url !== "string" || !isSize(asset.size)) {
+	const assetUrl = \`https://github.com/\${repoName}/releases/download/\${tag}/\${host.fileName}\`;
+	const head = await doFetch(assetUrl, { method: "HEAD", headers, redirect: "follow", signal });
+	if (!head.ok) {
+		throw new Error(\`Failed to fetch fork asset \${host.fileName}: \${head.status} \${head.statusText}\`);
+	}
+	const size = Number(head.headers.get("content-length") ?? "0");
+	if (!isSize(size)) {
 		throw new Error(\`Fork release \${tag} has no usable asset \${host.fileName}\`);
 	}
-	const checksumAsset = assets.find(a => a.name === \`\${host.fileName}.sha256\`);
-	if (!checksumAsset || typeof checksumAsset.browser_download_url !== "string") {
-		throw new Error(\`Fork release \${tag} has no \${host.fileName}.sha256\`);
-	}
-	const checksumResponse = await doFetch(checksumAsset.browser_download_url, { headers, signal });
+	const checksumResponse = await doFetch(\`\${assetUrl}.sha256\`, { headers, redirect: "follow", signal });
 	if (!checksumResponse.ok) {
 		throw new Error(\`Failed to fetch \${host.fileName}.sha256: \${checksumResponse.status}\`);
 	}
@@ -133,13 +139,11 @@ async function fetchForkBuild(
 	}
 	return {
 		version: resolved,
-		file: { name: host.fileName, size: asset.size, sha256 },
-		download: asset.browser_download_url,
+		file: { name: host.fileName, size, sha256 },
+		download: assetUrl,
 	};
 }
-
 `;
-
 const buildServiceText = read(buildService);
 const insertAt = buildServiceText.indexOf(
 	"/** Ask the build service for a build of this host's target ({@link BuildSelector}). */",
